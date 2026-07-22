@@ -204,19 +204,51 @@ function buildCOinS(ref) {
   return `<span class="Z3988" title="${esc(params.join('&amp;'))}"></span>`;
 }
 
-// ── Exports (operate on filtered results) ──
-function exportCSV() {
-  const filtered = getFilteredRefs();
-  const h = 'Number,Title,DOI,Authors,Year';
+// ── Exports ──
+// CSV shared cell quoter (also used by the batch exports).
+function csvCell(s) {
+  return `"${String(s == null ? '' : s).replace(/"/g, '""')}"`;
+}
+
+// Single-article CSV: only the ticked refs, with abstracts, named after the source.
+async function exportCSV() {
+  const filtered = getSelectedRefs();
+  if (!filtered.length) { showToast('No references selected'); return; }
+  setStatus('loading', `Fetching abstracts for ${filtered.length} references…`);
+  await fetchAbstractsForRefs(filtered);
+  const h = 'Number,Title,DOI,Authors,Year,Abstract';
   const rows = filtered.map((r, i) =>
-    `${i + 1},"${(r.title || '').replace(/"/g, '""')}","${r.doi || ''}","${(r.authors || '').replace(/"/g, '""')}","${r.year || ''}"`
+    `${i + 1},${csvCell(r.title || '')},${csvCell(r.doi || '')},${csvCell(r.authors || '')},${csvCell(r.year || '')},${csvCell(String(r.abstract || '').replace(/\s+/g, ' ').trim())}`
   );
   const b = new Blob(['\ufeff' + h + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(b);
-  a.download = 'references_snowball.csv';
+  a.download = exportFilenameBase(currentArticleInfo, currentSingleDir) + '.csv';
   a.click();
-  showToast(`CSV: ${filtered.length} references exported`);
+  setStatus('success', `CSV: ${filtered.length} reference${filtered.length > 1 ? 's' : ''} exported → ${a.download}`);
+  showToast(`CSV: ${filtered.length} exported`);
+}
+
+// ── Shared CSV builder / downloader (used by the batch exports) ──
+function buildCSV(refs) {
+  const h = 'Number,Title,DOI,Authors,Year,Abstract';
+  const rows = refs.map((r, i) => [
+    i + 1,
+    csvCell(r.title || ''),
+    csvCell(r.doi || ''),
+    csvCell(r.authors || ''),
+    csvCell(r.year || ''),
+    csvCell(String(r.abstract || '').replace(/\s+/g, ' ').trim())
+  ].join(','));
+  return '﻿' + h + '\n' + rows.join('\n');
+}
+
+function downloadCSV(refs, filename) {
+  const b = new Blob([buildCSV(refs)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(b);
+  a.download = filename;
+  a.click();
 }
 
 // ── Shared RIS builder / downloader (used by single + batch exports) ──
@@ -263,7 +295,7 @@ function firstAuthorSurname(authors) {
   return parts[parts.length - 1] || first;
 }
 
-function risFilenameBase(info, dir) {
+function exportFilenameBase(info, dir) {
   const author = sanitizeFilePart(firstAuthorSurname(info && info.authors));
   const year = (info && info.year) ? sanitizeFilePart(info.year) : 'nd';
   return `${author}_${year}_${dir}`;
@@ -275,7 +307,7 @@ async function exportRIS() {
   if (!refs.length) { showToast('No references selected'); return; }
   setStatus('loading', `Fetching abstracts for ${refs.length} references…`);
   await fetchAbstractsForRefs(refs);
-  const filename = risFilenameBase(currentArticleInfo, currentSingleDir) + '.ris';
+  const filename = exportFilenameBase(currentArticleInfo, currentSingleDir) + '.ris';
   downloadRIS(refs, filename);
   setStatus('success', `RIS: ${refs.length} reference${refs.length > 1 ? 's' : ''} exported → ${filename}`);
   showToast(`RIS: ${refs.length} exported → ${filename}`);

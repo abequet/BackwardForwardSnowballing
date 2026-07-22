@@ -17,10 +17,10 @@ A client-side web tool for **backward and forward snowballing** in systematic re
   - Hyphenation and line-break healing
 - **Cross-check & merge** — when both DOI and PDF are provided, the tool merges both reference sets, filling gaps from each source
 - **DOI resolution** — references without a DOI are automatically looked up via the Crossref bibliographic search API
-- **Batch processing** — paste multiple DOIs and process them all sequentially, with per-article tabs and combined export. Download **all backward references in one `.ris`** and **all forward citations in another** in a single click, instead of paper by paper.
+- **Batch processing** — paste multiple DOIs and process them all sequentially, with per-article tabs and combined export. Download **all backward references in one file** and **all forward citations in another** (RIS or CSV) in a single click, instead of paper by paper.
 - **Advanced filters** — filter results by text search, author name, and year range
-- **Selective export (single mode)** — tick the papers to include, then export only the checked ones. The file is named `Author_Year_direction.ris` (e.g. `Smith_2020_backward.ris`) after the source paper.
-- **Export** — RIS (Zotero/Mendeley/EndNote compatible, now including **abstracts**), CSV, or copy all DOIs to clipboard.
+- **Selective export (single mode)** — tick the papers to include, then export only the checked ones (RIS **and** CSV). Files are named `Author_Year_direction` (e.g. `Smith_2020_backward.ris`, `Smith_2020_forward.csv`) after the source paper.
+- **Export** — RIS (Zotero/Mendeley/EndNote compatible) or CSV, both now including **abstracts** (fetched on demand via OpenAlex), or copy all DOIs to clipboard.
 - **Zotero integration** — embedded COinS metadata for direct multi-item import via the Zotero browser connector
 - **Article info card** — displays metadata (title, authors, journal, year) of the article being analyzed
 - **Zero setup** — everything runs client-side in the browser. No data is sent to any server other than the public APIs listed below.

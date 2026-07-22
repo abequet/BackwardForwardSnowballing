@@ -176,7 +176,7 @@ function showBatchResult(idx) {
     <div class="toolbar">
       <input type="text" class="search-box" id="searchBox" placeholder="Filter…" oninput="filterRefs()">
       <button class="btn-sm" onclick="exportBatchRIS()">⬇ RIS</button>
-      <button class="btn-sm" onclick="exportCSV()">⬇ CSV</button>
+      <button class="btn-sm" onclick="exportBatchCSV()">⬇ CSV</button>
       <button class="btn-sm" onclick="copyAll()">⎘ DOIs</button>
     </div>
     <ul class="ref-list" id="refList"></ul></div>`;
@@ -193,10 +193,24 @@ async function exportBatchRIS() {
   if (!refs.length) { showToast('No references to export'); return; }
   setStatus('loading', `Fetching abstracts for ${refs.length} references…`);
   await fetchAbstractsForRefs(refs);
-  const filename = risFilenameBase(entry, batchActiveDir) + '.ris';
+  const filename = exportFilenameBase(entry, batchActiveDir) + '.ris';
   downloadRIS(refs, filename);
   setStatus('success', `RIS: ${refs.length} reference${refs.length > 1 ? 's' : ''} exported → ${filename}`);
   showToast(`RIS: ${refs.length} exported → ${filename}`);
+}
+
+// ── Per-paper CSV (current tab + current direction), named after the source ──
+async function exportBatchCSV() {
+  const entry = batchResults[batchActiveIdx];
+  if (!entry) return;
+  const refs = batchActiveDir === 'backward' ? entry.backward : entry.forward;
+  if (!refs.length) { showToast('No references to export'); return; }
+  setStatus('loading', `Fetching abstracts for ${refs.length} references…`);
+  await fetchAbstractsForRefs(refs);
+  const filename = exportFilenameBase(entry, batchActiveDir) + '.csv';
+  downloadCSV(refs, filename);
+  setStatus('success', `CSV: ${refs.length} reference${refs.length > 1 ? 's' : ''} exported → ${filename}`);
+  showToast(`CSV: ${refs.length} exported → ${filename}`);
 }
 
 // ── Bulk RIS: every backward (or forward) ref across all batched papers ──
@@ -219,15 +233,20 @@ async function exportAllDirectionRIS(dir) {
   showToast(`RIS: ${refs.length} ${dir} refs exported`);
 }
 
-function exportAllBatchCSV() {
-  const h = 'Direction,Source_DOI,Source_Title,Ref_Number,Ref_Title,Ref_DOI,Ref_Authors,Ref_Year';
+async function exportAllBatchCSV() {
+  const all = [];
+  for (const e of batchResults) { all.push(...e.backward, ...e.forward); }
+  setStatus('loading', `Fetching abstracts for ${all.length} references…`);
+  await fetchAbstractsForRefs(all);
+  const h = 'Direction,Source_DOI,Source_Title,Ref_Number,Ref_Title,Ref_DOI,Ref_Authors,Ref_Year,Ref_Abstract';
   const rows = [];
+  const ab = r => csvCell(String(r.abstract || '').replace(/\s+/g, ' ').trim());
   for (const entry of batchResults) {
     entry.backward.forEach((r, i) => {
-      rows.push(`"backward","${entry.doi}","${(entry.title || '').replace(/"/g, '""')}",${i + 1},"${(r.title || '').replace(/"/g, '""')}","${r.doi || ''}","${(r.authors || '').replace(/"/g, '""')}","${r.year || ''}"`);
+      rows.push(`"backward",${csvCell(entry.doi)},${csvCell(entry.title || '')},${i + 1},${csvCell(r.title || '')},${csvCell(r.doi || '')},${csvCell(r.authors || '')},${csvCell(r.year || '')},${ab(r)}`);
     });
     entry.forward.forEach((r, i) => {
-      rows.push(`"forward","${entry.doi}","${(entry.title || '').replace(/"/g, '""')}",${i + 1},"${(r.title || '').replace(/"/g, '""')}","${r.doi || ''}","${(r.authors || '').replace(/"/g, '""')}","${r.year || ''}"`);
+      rows.push(`"forward",${csvCell(entry.doi)},${csvCell(entry.title || '')},${i + 1},${csvCell(r.title || '')},${csvCell(r.doi || '')},${csvCell(r.authors || '')},${csvCell(r.year || '')},${ab(r)}`);
     });
   }
   const b = new Blob(['\ufeff' + h + '\n' + rows.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -237,5 +256,6 @@ function exportAllBatchCSV() {
   a.click();
   const totalBack = batchResults.reduce((s, e) => s + e.backward.length, 0);
   const totalFwd = batchResults.reduce((s, e) => s + e.forward.length, 0);
+  setStatus('success', `CSV: ← ${totalBack} + → ${totalFwd} refs (with abstracts) from ${batchResults.length} papers.`);
   showToast(`CSV: ← ${totalBack} backward + → ${totalFwd} forward from ${batchResults.length} articles`);
 }
