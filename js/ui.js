@@ -2,6 +2,11 @@
 //  ui.js — Rendering, filtering, export
 // ═══════════════════════════════════════════════
 
+// Selection (single-article mode only): each rendered ref gets a checkbox whose
+// state is stored on the ref object as `_sel`. Off in batch mode.
+let selectionEnabled = false;
+let _refIdSeq = 0;
+
 function showArticleCard(info) {
   const card = document.getElementById('articleCard');
   document.getElementById('articleTitle').textContent = info.title || 'Unknown title';
@@ -16,6 +21,7 @@ function showArticleCard(info) {
 
 function renderResults(refs, title) {
   const heading = title || 'Cited References';
+  selectionEnabled = true;
 
   // Compute year range for the slider
   const years = refs.map(r => parseInt(r.year)).filter(y => y > 1900 && y < 2100);
@@ -50,8 +56,15 @@ function renderResults(refs, title) {
         <button class="btn-sm" onclick="copyAll()">⎘ DOIs</button>
       </div>
     </div>
+    <div class="sel-bar">
+      <span class="sel-hint">☑ Tick the papers to include in the RIS export</span>
+      <button class="btn-sm" onclick="selectAllRefs(true)">Select all</button>
+      <button class="btn-sm" onclick="selectAllRefs(false)">Select none</button>
+      <span class="sel-info" id="selInfo"></span>
+    </div>
     <ul class="ref-list" id="refList"></ul></div>`;
   renderList(refs);
+  updateSelInfo();
 }
 
 // ── Filtering ──
@@ -108,17 +121,48 @@ function resetFilters() {
   filterRefs();
 }
 
+// ── Selection (single-article mode) ──
+function getSelectedRefs() {
+  return allRefs.filter(r => r._sel !== false);
+}
+
+function toggleRefSel(cb) {
+  const id = +cb.dataset.id;
+  const r = allRefs.find(x => x._id === id);
+  if (r) r._sel = cb.checked;
+  updateSelInfo();
+}
+
+// Select / deselect all refs currently visible under the active filter.
+function selectAllRefs(val) {
+  const visible = getFilteredRefs();
+  visible.forEach(r => { r._sel = val; });
+  renderList(visible);
+  updateSelInfo();
+}
+
+function updateSelInfo() {
+  const el = document.getElementById('selInfo');
+  if (!el) return;
+  const n = allRefs.filter(r => r._sel !== false).length;
+  el.textContent = `${n} of ${allRefs.length} selected`;
+}
+
 // ── Render list ──
 function renderList(refs) {
   const l = document.getElementById('refList');
   if (!l) return; // DOM element may not exist if user switched views
   if (!refs.length) { l.innerHTML = '<li class="no-results">No results found.</li>'; return; }
   l.innerHTML = refs.map((r, i) => {
+    if (r._id == null) r._id = ++_refIdSeq;
     const doiHtml = r.doi
       ? `<span class="ref-doi"><a href="https://doi.org/${esc(r.doi)}" target="_blank" rel="noopener">${esc(r.doi)}</a></span>`
       : '<span class="ref-doi" style="color:var(--text-dim);font-family:var(--mono);font-size:.75rem">no DOI</span>';
     const coins = buildCOinS(r);
-    return `<li class="ref-item"><span class="ref-num">${i + 1}</span><div class="ref-body">
+    const check = selectionEnabled
+      ? `<input type="checkbox" class="ref-check" data-id="${r._id}" ${r._sel !== false ? 'checked' : ''} onchange="toggleRefSel(this)" title="Include in RIS export">`
+      : '';
+    return `<li class="ref-item">${check}<span class="ref-num">${i + 1}</span><div class="ref-body">
       ${coins}
       <div class="ref-title">${esc(r.title)}</div><div class="ref-meta">
       ${r.year ? `<span class="ref-year">${r.year}</span>` : ''}
@@ -175,9 +219,9 @@ function exportCSV() {
   showToast(`CSV: ${filtered.length} references exported`);
 }
 
-function exportRIS() {
-  const filtered = getFilteredRefs();
-  const entries = filtered.map(r => {
+// ── Shared RIS builder / downloader (used by single + batch exports) ──
+function buildRIS(refs) {
+  return refs.map(r => {
     const lines = ['TY  - JOUR'];
     if (r.title) lines.push('T1  - ' + r.title);
     if (r.authors) {
@@ -188,20 +232,53 @@ function exportRIS() {
       }
     }
     if (r.year) lines.push('PY  - ' + r.year);
+    if (r.abstract) lines.push('AB  - ' + String(r.abstract).replace(/\r?\n/g, ' ').trim());
     if (r.doi) {
       lines.push('DO  - ' + r.doi);
       lines.push('UR  - https://doi.org/' + r.doi);
     }
     lines.push('ER  - ');
     return lines.join('\r\n');
-  });
-  const ris = entries.join('\r\n');
-  const b = new Blob([ris], { type: 'application/x-research-info-systems' });
+  }).join('\r\n');
+}
+
+function downloadRIS(refs, filename) {
+  const b = new Blob([buildRIS(refs)], { type: 'application/x-research-info-systems' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(b);
-  a.download = 'references_snowball.ris';
+  a.download = filename;
   a.click();
-  showToast(`RIS: ${filtered.length} references exported`);
+}
+
+// ── Filename helpers: "Author_Year_direction" from the source paper's info ──
+function sanitizeFilePart(s) {
+  // NFD splits accented letters into base + combining mark; the ASCII filter drops the marks.
+  return String(s || '').normalize('NFD').replace(/[^A-Za-z0-9]/g, '') || 'NA';
+}
+
+function firstAuthorSurname(authors) {
+  if (!authors) return 'Unknown';
+  const first = authors.split(/[;,]/)[0].trim();
+  const parts = first.split(/\s+/);
+  return parts[parts.length - 1] || first;
+}
+
+function risFilenameBase(info, dir) {
+  const author = sanitizeFilePart(firstAuthorSurname(info && info.authors));
+  const year = (info && info.year) ? sanitizeFilePart(info.year) : 'nd';
+  return `${author}_${year}_${dir}`;
+}
+
+// ── Single-article RIS export: only the ticked refs, named after the source ──
+async function exportRIS() {
+  const refs = getSelectedRefs();
+  if (!refs.length) { showToast('No references selected'); return; }
+  setStatus('loading', `Fetching abstracts for ${refs.length} references…`);
+  await fetchAbstractsForRefs(refs);
+  const filename = risFilenameBase(currentArticleInfo, currentSingleDir) + '.ris';
+  downloadRIS(refs, filename);
+  setStatus('success', `RIS: ${refs.length} reference${refs.length > 1 ? 's' : ''} exported → ${filename}`);
+  showToast(`RIS: ${refs.length} exported → ${filename}`);
 }
 
 function copyAll() {

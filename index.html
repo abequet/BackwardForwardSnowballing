@@ -73,6 +73,11 @@ h1{font-family:var(--serif);font-size:2rem;font-weight:700;color:#e4e8f0;line-he
 .batch-tab-count{background:var(--surface2);padding:.1rem .4rem;border-radius:3px;font-size:.65rem}
 .batch-tab-status{font-size:.75rem;flex-shrink:0}
 
+/* ── Batch export bar ── */
+.batch-export-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem;
+  padding:.7rem .9rem;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+.batch-export-label{font-family:var(--mono);font-size:.72rem;color:var(--text-dim);letter-spacing:.03em}
+
 /* ── Input section ── */
 .input-section{margin-bottom:2rem}
 .input-section label{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:.5rem}
@@ -136,6 +141,12 @@ h1{font-family:var(--serif);font-size:2rem;font-weight:700;color:#e4e8f0;line-he
 .filter-input::placeholder{color:var(--text-dim)}
 .filter-year{width:80px}
 .filter-actions{flex-direction:row;align-items:center;gap:.4rem;margin-left:auto;flex-wrap:wrap}
+
+/* ── Selection bar (single mode) ── */
+.sel-bar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.8rem}
+.sel-hint{font-family:var(--mono);font-size:.68rem;color:var(--text-dim);margin-right:auto}
+.sel-info{font-family:var(--mono);font-size:.68rem;color:var(--accent)}
+.ref-check{width:16px;height:16px;margin-top:3px;flex-shrink:0;cursor:pointer;accent-color:var(--accent)}
 
 .ref-list{list-style:none}
 .ref-item{padding:.9rem 1rem;border-bottom:1px solid var(--border);transition:background .15s;display:flex;gap:.8rem;align-items:flex-start}
@@ -233,6 +244,7 @@ h1{font-family:var(--serif);font-size:2rem;font-weight:700;color:#e4e8f0;line-he
 
     <div id="batchStatus" class="status"></div>
     <div id="batchTabs" class="batch-tabs"></div>
+    <div id="batchExportBar" class="batch-export-bar" style="display:none"></div>
     <div id="batchResultsArea"></div>
   </div>
 

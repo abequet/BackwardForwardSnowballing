@@ -101,6 +101,22 @@ function renderBatchTabs() {
       <span class="batch-tab-count">${total}</span>
     </button>`;
   }).join('');
+  renderBatchExportBar();
+}
+
+// ── Batch-wide export bar: one RIS with every backward ref, one with every forward ──
+function renderBatchExportBar() {
+  const bar = document.getElementById('batchExportBar');
+  if (!bar) return;
+  if (!batchResults.length) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
+  const totalBack = batchResults.reduce((s, e) => s + e.backward.length, 0);
+  const totalFwd = batchResults.reduce((s, e) => s + e.forward.length, 0);
+  bar.style.display = 'flex';
+  bar.innerHTML =
+    `<span class="batch-export-label">Export all ${batchResults.length} papers:</span>` +
+    `<button class="btn-sm" onclick="exportAllBackwardRIS()">⬇ Backward RIS (${totalBack})</button>` +
+    `<button class="btn-sm" onclick="exportAllForwardRIS()">⬇ Forward RIS (${totalFwd})</button>` +
+    `<button class="btn-sm" onclick="exportAllBatchCSV()">⬇ All CSV</button>`;
 }
 
 function switchBatchTab(idx) {
@@ -118,6 +134,7 @@ function switchBatchDir(dir) {
 function showBatchResult(idx) {
   const entry = batchResults[idx];
   if (!entry) return;
+  selectionEnabled = false; // no per-ref checkboxes in batch mode
   const area = document.getElementById('batchResultsArea');
   const dir = batchActiveDir;
   const refs = dir === 'backward' ? entry.backward : entry.forward;
@@ -158,15 +175,48 @@ function showBatchResult(idx) {
     <div class="results-header"><h2>${heading}</h2><span class="badge">${refs.length} ref${refs.length > 1 ? 's' : ''}</span></div>
     <div class="toolbar">
       <input type="text" class="search-box" id="searchBox" placeholder="Filter…" oninput="filterRefs()">
-      <button class="btn-sm" onclick="exportRIS()">⬇ RIS</button>
+      <button class="btn-sm" onclick="exportBatchRIS()">⬇ RIS</button>
       <button class="btn-sm" onclick="exportCSV()">⬇ CSV</button>
-      <button class="btn-sm" onclick="exportAllBatchCSV()">⬇ All CSV</button>
       <button class="btn-sm" onclick="copyAll()">⎘ DOIs</button>
     </div>
     <ul class="ref-list" id="refList"></ul></div>`;
 
   area.innerHTML = html;
   renderList(refs);
+}
+
+// ── Per-paper RIS (current tab + current direction), named after the source ──
+async function exportBatchRIS() {
+  const entry = batchResults[batchActiveIdx];
+  if (!entry) return;
+  const refs = batchActiveDir === 'backward' ? entry.backward : entry.forward;
+  if (!refs.length) { showToast('No references to export'); return; }
+  setStatus('loading', `Fetching abstracts for ${refs.length} references…`);
+  await fetchAbstractsForRefs(refs);
+  const filename = risFilenameBase(entry, batchActiveDir) + '.ris';
+  downloadRIS(refs, filename);
+  setStatus('success', `RIS: ${refs.length} reference${refs.length > 1 ? 's' : ''} exported → ${filename}`);
+  showToast(`RIS: ${refs.length} exported → ${filename}`);
+}
+
+// ── Bulk RIS: every backward (or forward) ref across all batched papers ──
+// Kept un-deduplicated: a ref cited by N source papers appears N times.
+function exportAllBackwardRIS() { return exportAllDirectionRIS('backward'); }
+function exportAllForwardRIS() { return exportAllDirectionRIS('forward'); }
+
+async function exportAllDirectionRIS(dir) {
+  const refs = [];
+  for (const e of batchResults) {
+    const arr = dir === 'backward' ? e.backward : e.forward;
+    refs.push(...arr);
+  }
+  if (!refs.length) { showToast(`No ${dir} references to export`); return; }
+  setStatus('loading', `Fetching abstracts for ${refs.length} ${dir} references…`);
+  await fetchAbstractsForRefs(refs);
+  downloadRIS(refs, `all_${dir}_snowball.ris`);
+  setStatus('success',
+    `RIS: ${refs.length} ${dir} reference${refs.length > 1 ? 's' : ''} exported from ${batchResults.length} papers → all_${dir}_snowball.ris`);
+  showToast(`RIS: ${refs.length} ${dir} refs exported`);
 }
 
 function exportAllBatchCSV() {

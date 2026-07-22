@@ -6,6 +6,8 @@ let allRefs = [];
 let pendingPDFFile = null;
 let lastBackwardRefs = [];
 let lastForwardRefs = [];
+let currentArticleInfo = null;   // source paper info — used for the RIS filename
+let currentSingleDir = 'backward'; // active direction in single mode
 
 // ── DOM refs ──
 const dz = document.getElementById('dropzone');
@@ -44,10 +46,12 @@ function resetPreviousResults() {
   allRefs = [];
   lastBackwardRefs = [];
   lastForwardRefs = [];
+  currentArticleInfo = null;
 }
 
 // ── Direction sub-tabs (backward / forward) ──
 function showDirection(dir) {
+  currentSingleDir = dir;
   document.querySelectorAll('.dir-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.dir === dir);
   });
@@ -76,6 +80,8 @@ async function runExtraction() {
   let apiRefs = [], pdfRefs = [], pdfDOI = null, pdfFirstPageText = '';
   lastBackwardRefs = [];
   lastForwardRefs = [];
+  currentSingleDir = 'backward';
+  currentArticleInfo = { title: '', authors: '', year: '', journal: '', doi: doi || '' };
 
   // ── Step 1: PDF ──
   if (hasPDF) {
@@ -93,9 +99,11 @@ async function runExtraction() {
   if (doi) {
     setStatus('loading', 'Fetching article metadata…');
     const info = await fetchArticleInfo(doi);
+    currentArticleInfo = info;
     if (info.title) showArticleCard(info);
   } else if (pdfFirstPageText) {
     const info = extractArticleInfoFromPDFText(pdfFirstPageText);
+    currentArticleInfo = info;
     if (info.title) showArticleCard(info);
   }
 
