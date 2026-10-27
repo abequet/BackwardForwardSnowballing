@@ -4,6 +4,8 @@ A client-side web tool for **backward and forward snowballing** in systematic re
 
 **No account, no API key, no server — just open and go.**
 
+Accessible live on https://abequet.github.io/BackwardForwardSnowballing/ 
+
 ## Features
 
 - **Backward snowballing** — extracts all references cited by an article, pooling Crossref, OpenAlex, Semantic Scholar and OpenCitations
